@@ -1,0 +1,44 @@
+name: Worker
+on:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+
+  work:
+    name: Work
+    runs-on: ubuntu-20.04
+    env:
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    steps:
+
+      - name: Check out code
+        uses: actions/checkout@v2
+        with:
+          repository: 'ruby/ruby'
+          ref: 'v3_0_0'
+          path: 'source'
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.0
+
+      - name: Install sdoc
+        run: gem install sdoc -v '~> 1.1'
+
+      - name: Generate docs
+        run: sdoc . --op docs
+
+      - name: Upload docs to S3
+        run: aws s3 sync ./docs s3://rubydocs/ruby-3-0-0 --delete --acl public-read
+
+      - name: Zip docs
+        run: 7z a ruby-3-0-0.zip ./docs
+
+      - name: Upload docs to S3
+        run: aws s3 cp ruby-3-0-0.zip s3://rubydocs --acl public-read
