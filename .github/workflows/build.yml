@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      doc_id:
+        type: string
+        description: "Doc ID"
+        required: true
+      debug:
+        type: boolean
+        description: "Enable debug session with tmate"
+        required: false
+        default: false
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      RAILSBUMP_API_TOKEN: ${{ secrets.RAILSBUMP_API_TOKEN }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Debug with tmate
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug }}
+
+      - name: Install gems
+        run: bundle install
+
+      - name: Run scraper
+        run: bundle exec ruby manager.rb build ${{ inputs.doc_id }} >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack on failure
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          author_name: App CI
+          fields: repo,message,workflow,action
+        if: failure()
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v5
+        with:
+          name: screenshots
+          path: tmp/capybara
+        if: failure()
